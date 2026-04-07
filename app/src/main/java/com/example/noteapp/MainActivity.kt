@@ -10,24 +10,36 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.NoteAdd
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import coil3.compose.AsyncImage
 import com.cloudinary.android.MediaManager
 import com.cloudinary.android.callback.ErrorInfo
@@ -38,9 +50,6 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.firestore
-import kotlinx.coroutines.flow.distinctUntilChanged  // nếu dùng
-import androidx.compose.foundation.BorderStroke
-import java.io.File
 
 class MainActivity : ComponentActivity() {
 
@@ -52,23 +61,29 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         // Khởi tạo Cloudinary
-        val config = mapOf(
-            "cloud_name" to "dmwwg6qrt",
-            "api_key" to "487522645529365",
-            "api_secret" to "r3dq-VBeMZxRgaNlndf_gVp1Qwg"
-        )
         try {
+            val config = mapOf(
+                "cloud_name" to "dmwwg6qrt",
+                "api_key" to "487522645529365",
+                "api_secret" to "r3dq-VBeMZxRgaNlndf_gVp1Qwg"
+            )
             MediaManager.init(this, config)
-        } catch (e: Exception) {}
+        } catch (e: Exception) {
+            // Đã khởi tạo hoặc lỗi khác
+        }
 
         setContent {
             NoteAppTheme(darkTheme = true) {
-                AuthStateScreen()
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    AuthStateScreen()
+                }
             }
         }
     }
 
-    // ==================== AUTH STATE ====================
     @Composable
     fun AuthStateScreen() {
         var user by remember { mutableStateOf(auth.currentUser) }
@@ -78,19 +93,19 @@ class MainActivity : ComponentActivity() {
                 user = firebaseAuth.currentUser
             }
             auth.addAuthStateListener(listener)
-            onDispose {
-                auth.removeAuthStateListener(listener)
-            }
+            onDispose { auth.removeAuthStateListener(listener) }
         }
 
-        if (user == null) {
-            AuthScreen()
-        } else {
-            MainNoteScreen()
+        Crossfade(targetState = user, label = "AuthTransition") { currentUser ->
+            if (currentUser == null) {
+                AuthScreen()
+            } else {
+                MainNoteScreen()
+            }
         }
     }
 
-    // ==================== MÀN HÌNH ĐĂNG NHẬP / ĐĂNG KÝ ====================
+    // ==================== AUTH SCREEN (BEAUTIFUL REDESIGN) ====================
     @Composable
     fun AuthScreen() {
         var isLogin by remember { mutableStateOf(true) }
@@ -99,183 +114,235 @@ class MainActivity : ComponentActivity() {
         var isLoading by remember { mutableStateOf(false) }
         val context = LocalContext.current
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = if (isLogin) "Đăng nhập" else "Đăng ký",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-
-            Spacer(modifier = Modifier.height(40.dp))
-
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("Email") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("Mật khẩu") },
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Button(
-                onClick = {
-                    if (email.isBlank() || password.isBlank()) {
-                        Toast.makeText(context, "Vui lòng nhập đầy đủ thông tin", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-
-                    isLoading = true
-
-                    if (isLogin) {
-                        // Đăng nhập
-                        auth.signInWithEmailAndPassword(email, password)
-                            .addOnCompleteListener { task ->
-                                isLoading = false
-                                if (!task.isSuccessful) {
-                                    Toast.makeText(context, "Đăng nhập thất bại. Kiểm tra lại email/mật khẩu!", Toast.LENGTH_LONG).show()
-                                }
-                            }
-                    } else {
-                        // Đăng ký
-                        auth.createUserWithEmailAndPassword(email, password)
-                            .addOnCompleteListener { task ->
-                                isLoading = false
-                                if (task.isSuccessful) {
-                                    Toast.makeText(context, "Đăng ký thành công! Vui lòng đăng nhập.", Toast.LENGTH_SHORT).show()
-                                    isLogin = true
-                                } else {
-                                    Toast.makeText(context, "Đăng ký thất bại: ${task.exception?.message}", Toast.LENGTH_LONG).show()
-                                }
-                            }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isLoading
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = Color.White
+            // Animated background gradient effect
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                                MaterialTheme.colorScheme.background
+                            )
+                        )
                     )
-                } else {
-                    Text(if (isLogin) "Đăng nhập" else "Đăng ký")
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Application Logo/Icon
+                Surface(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .shadow(12.dp, CircleShape),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Description,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .padding(20.dp)
+                            .fillMaxSize(),
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-            TextButton(onClick = { isLogin = !isLogin }) {
                 Text(
-                    text = if (isLogin) "Chưa có tài khoản? Đăng ký" else "Đã có tài khoản? Đăng nhập",
-                    color = Color(0xFF64B5F6)
+                    text = if (isLogin) "Welcome Back" else "Join NoteApp",
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
+
+                Text(
+                    text = if (isLogin) "Sign in to your account" else "Start organizing your life today",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(40.dp))
+
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Email Address") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Password") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                Button(
+                    onClick = {
+                        if (email.isBlank() || password.isBlank()) {
+                            Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        isLoading = true
+                        if (isLogin) {
+                            auth.signInWithEmailAndPassword(email, password)
+                                .addOnCompleteListener { isLoading = false }
+                        } else {
+                            auth.createUserWithEmailAndPassword(email, password)
+                                .addOnCompleteListener { task ->
+                                    isLoading = false
+                                    if (task.isSuccessful) isLogin = true
+                                }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    enabled = !isLoading
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            text = if (isLogin) "SIGN IN" else "CREATE ACCOUNT",
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                TextButton(onClick = { isLogin = !isLogin }) {
+                    Text(
+                        text = if (isLogin) "Don't have an account? Sign up" else "Already have an account? Sign in",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     }
 
     // ==================== MAIN NOTE SCREEN ====================
+    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun MainNoteScreen() {
         var notes by remember { mutableStateOf(listOf<Note>()) }
         var showDialog by remember { mutableStateOf(false) }
         var editingNote by remember { mutableStateOf<Note?>(null) }
+        var isLoading by remember { mutableStateOf(true) }
 
         LaunchedEffect(Unit) {
-            getNotes { notes = it }
+            getNotes { 
+                notes = it
+                isLoading = false
+            }
         }
 
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Top Bar
-            // ==================== TOP BAR ====================
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = Color(0xFF111111),           // Nền tối hơn một chút
-                shadowElevation = 6.dp
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "My Notes",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-
-                    // NÚT ĐĂNG XUẤT ĐÃ CÓ BO VIỀN ĐẸP
-                    OutlinedButton(
-                        onClick = { auth.signOut() },
-                        shape = RoundedCornerShape(20.dp),           // Bo viền tròn mềm
-                        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary), // Viền tím neon
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.primary
-                        ),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
-                    ) {
+        Scaffold(
+            topBar = {
+                LargeTopAppBar(
+                    title = { 
                         Text(
-                            text = "Đăng xuất",
-                            fontWeight = FontWeight.SemiBold,
-                            style = MaterialTheme.typography.bodyMedium
+                            "Book Note",
+                            fontWeight = FontWeight.Black
+                        ) 
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = { auth.signOut() },
+                            modifier = Modifier.padding(end = 8.dp)
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.Logout,
+                                contentDescription = "Sign Out",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.largeTopAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+            },
+            floatingActionButton = {
+                ExtendedFloatingActionButton(
+                    onClick = { editingNote = null; showDialog = true },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = RoundedCornerShape(20.dp),
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("New Note", fontWeight = FontWeight.Bold) }
+                )
+            }
+        ) { paddingValues ->
+            Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                } else if (notes.isEmpty()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.NoteAdd,
+                            contentDescription = null,
+                            modifier = Modifier.size(100.dp),
+                            tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            "Your thoughts belong here",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.outline
                         )
                     }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(notes) { note ->
+                            NoteCard(
+                                note = note,
+                                onEdit = { editingNote = note; showDialog = true },
+                                onDelete = { deleteNote(note.id) { getNotes { notes = it } } },
+                                onDownload = { downloadFile(note) }
+                            )
+                        }
+                    }
                 }
-            }
-
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(notes) { note ->
-                    NoteCard(
-                        note = note,
-                        onEdit = { editingNote = note; showDialog = true },
-                        onDelete = { deleteNote(note.id) { getNotes { notes = it } } },
-                        onDownload = { downloadFile(note) }
-                    )
-                }
-            }
-        }
-
-        // FAB
-        Box(modifier = Modifier.fillMaxSize()) {
-            FloatingActionButton(
-                onClick = {
-                    editingNote = null
-                    showDialog = true
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(20.dp),
-                containerColor = MaterialTheme.colorScheme.tertiary,   // Cam nổi bật
-                shape = RoundedCornerShape(20.dp),
-                elevation = FloatingActionButtonDefaults.elevation(12.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Thêm ghi chú", tint = Color.White)
             }
         }
 
@@ -296,33 +363,53 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // ==================== NOTE CARD (thêm nút Tải về) ====================
     @Composable
-    fun NoteCard(
-        note: Note,
-        onEdit: () -> Unit,
-        onDelete: () -> Unit,
-        onDownload: () -> Unit
-    ) {
+    fun NoteCard(note: Note, onEdit: () -> Unit, onDelete: () -> Unit, onDownload: () -> Unit) {
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F1F)),
-            shape = RoundedCornerShape(20.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onEdit() },
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
-                Text(
-                    text = note.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = note.description,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Color(0xFFB3B3B3)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = note.title.ifEmpty { "Untitled" },
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = note.description,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Delete",
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                        )
+                    }
+                }
 
                 if (note.imageUrl.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(16.dp))
@@ -331,51 +418,45 @@ class MainActivity : ComponentActivity() {
                         contentDescription = null,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(200.dp)
+                            .height(180.dp)
                             .clip(RoundedCornerShape(16.dp)),
                         contentScale = ContentScale.Crop
                     )
                 }
 
-                if (note.fileUrl.isNotEmpty() && note.fileName.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text("📎 ${note.fileName}", color = MaterialTheme.colorScheme.secondary)
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(
-                        onClick = onEdit,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
+                if (note.fileUrl.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onDownload() },
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Sửa", fontWeight = FontWeight.SemiBold)
-                    }
-
-                    Button(
-                        onClick = onDelete,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        )
-                    ) {
-                        Text("Xóa", fontWeight = FontWeight.SemiBold)
-                    }
-
-                    if (note.fileUrl.isNotEmpty()) {
-                        OutlinedButton(
-                            onClick = onDownload,
-                            shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.secondary
-                            )
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Download, contentDescription = "Tải về")
+                            Icon(
+                                Icons.Default.AttachFile,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = note.fileName.ifEmpty { "File" },
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Icon(
+                                Icons.Default.Download,
+                                contentDescription = "Download",
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
                         }
                     }
                 }
@@ -383,23 +464,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // ==================== NOTE DIALOG (hỗ trợ chọn File) ====================
     @Composable
-    fun NoteDialog(
-        note: Note? = null,
-        onDismiss: () -> Unit,
-        onSave: (String, String, Uri?, Uri?, String?) -> Unit
-    ) {
+    fun NoteDialog(note: Note?, onDismiss: () -> Unit, onSave: (String, String, Uri?, Uri?, String?) -> Unit) {
         var title by remember { mutableStateOf(note?.title ?: "") }
         var description by remember { mutableStateOf(note?.description ?: "") }
         var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
         var selectedFileUri by remember { mutableStateOf<Uri?>(null) }
         var selectedFileName by remember { mutableStateOf<String?>(null) }
 
-        val imageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-            selectedImageUri = uri
-        }
-
+        val imageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { selectedImageUri = it }
         val fileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
             selectedFileUri = uri
             selectedFileName = uri?.lastPathSegment?.substringAfterLast('/') ?: "file"
@@ -407,134 +480,153 @@ class MainActivity : ComponentActivity() {
 
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text(if (note == null) "Thêm ghi chú" else "Sửa ghi chú") },
+            shape = RoundedCornerShape(28.dp),
+            title = { 
+                Text(
+                    text = if (note == null) "New Note" else "Edit Note",
+                    fontWeight = FontWeight.Bold 
+                ) 
+            },
             text = {
-                Column {
-                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Tiêu đề") }, modifier = Modifier.fillMaxWidth())
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Nội dung") }, minLines = 3, modifier = Modifier.fillMaxWidth())
-
-                    Spacer(modifier = Modifier.height(16.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        placeholder = { Text("Title") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = { description = it },
+                        placeholder = { Text("Start writing...") },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    )
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { imageLauncher.launch("image/*") }, modifier = Modifier.weight(1f)) {
-                            Text("Chọn ảnh")
+                        OutlinedButton(
+                            onClick = { imageLauncher.launch("image/*") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Image", fontSize = 12.sp)
                         }
-                        Button(onClick = { fileLauncher.launch("*/*") }, modifier = Modifier.weight(1f)) {
-                            Text("Chọn file")
+                        OutlinedButton(
+                            onClick = { fileLauncher.launch("*/*") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.FileUpload, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("File", fontSize = 12.sp)
                         }
                     }
 
-                    selectedImageUri?.let {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        AsyncImage(model = it, contentDescription = null, modifier = Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
+                    if (selectedImageUri != null) {
+                        AsyncImage(
+                            model = selectedImageUri,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(100.dp)
+                                .clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Crop
+                        )
                     }
-
-                    selectedFileUri?.let {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("File đã chọn: ${selectedFileName ?: it.lastPathSegment}", color = Color(0xFF81C784))
+                    if (selectedFileName != null) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.InsertDriveFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(selectedFileName!!, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                            }
+                        }
                     }
                 }
             },
             confirmButton = {
-                Button(onClick = { onSave(title, description, selectedImageUri, selectedFileUri, selectedFileName) }) {
-                    Text(if (note == null) "Thêm" else "Lưu")
+                Button(
+                    onClick = { onSave(title, description, selectedImageUri, selectedFileUri, selectedFileName) },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Save Note")
                 }
             },
-            dismissButton = { TextButton(onClick = onDismiss) { Text("Hủy") } }
+            dismissButton = {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            }
         )
     }
 
-    // ==================== DOWNLOAD FILE ====================
     private fun downloadFile(note: Note) {
         if (note.fileUrl.isEmpty()) return
-
         val context = this
-        val request = DownloadManager.Request(Uri.parse(note.fileUrl))
+        val request = DownloadManager.Request(note.fileUrl.toUri())
             .setTitle(note.fileName)
-            .setDescription("Đang tải ${note.fileName}")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, note.fileName)
-
+        
         val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         downloadManager.enqueue(request)
-
-        Toast.makeText(context, "Đang tải về thư mục Downloads...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Downloading file...", Toast.LENGTH_SHORT).show()
     }
 
-    // ==================== ADD / UPDATE NOTE (hỗ trợ file) ====================
-    private fun addNoteWithFile(
-        title: String, description: String,
-        imageUri: Uri?, fileUri: Uri?, fileName: String?,
-        onSuccess: () -> Unit
-    ) {
-        val noteData = hashMapOf<String, Any>(
-            "title" to title,
-            "description" to description,
-            "timestamp" to FieldValue.serverTimestamp()
-        )
-
+    private fun addNoteWithFile(t: String, d: String, i: Uri?, f: Uri?, fn: String?, onSuccess: () -> Unit) {
+        val data = hashMapOf("title" to t, "description" to d, "timestamp" to FieldValue.serverTimestamp())
         when {
-            fileUri != null -> uploadToCloudinary(fileUri, true, fileName) { url ->
-                noteData["fileUrl"] = url
-                noteData["fileName"] = fileName ?: "file"
-                noteRef.add(noteData).addOnSuccessListener { onSuccess() }
+            f != null -> uploadToCloudinary(f) { url ->
+                data["fileUrl"] = url
+                data["fileName"] = fn ?: "file"
+                noteRef.add(data).addOnSuccessListener { onSuccess() }
             }
-            imageUri != null -> uploadToCloudinary(imageUri, false) { url ->
-                noteData["imageUrl"] = url
-                noteRef.add(noteData).addOnSuccessListener { onSuccess() }
+            i != null -> uploadToCloudinary(i) { url ->
+                data["imageUrl"] = url
+                noteRef.add(data).addOnSuccessListener { onSuccess() }
             }
-            else -> noteRef.add(noteData).addOnSuccessListener { onSuccess() }
+            else -> noteRef.add(data).addOnSuccessListener { onSuccess() }
         }
     }
 
-    private fun updateNote(
-        id: String, newTitle: String, newDesc: String,
-        newImageUri: Uri?, newFileUri: Uri?, newFileName: String?,
-        onSuccess: () -> Unit
-    ) {
-        val updates = hashMapOf<String, Any>(
-            "title" to newTitle,
-            "description" to newDesc
-        )
-
+    private fun updateNote(id: String, t: String, d: String, i: Uri?, f: Uri?, fn: String?, onSuccess: () -> Unit) {
+        val up = hashMapOf<String, Any>("title" to t, "description" to d)
         when {
-            newFileUri != null -> uploadToCloudinary(newFileUri, true, newFileName) { url ->
-                updates["fileUrl"] = url
-                updates["fileName"] = newFileName ?: "file"
-                noteRef.document(id).update(updates).addOnSuccessListener { onSuccess() }
+            f != null -> uploadToCloudinary(f) { url ->
+                up["fileUrl"] = url
+                up["fileName"] = fn ?: "file"
+                noteRef.document(id).update(up).addOnSuccessListener { onSuccess() }
             }
-            newImageUri != null -> uploadToCloudinary(newImageUri, false) { url ->
-                updates["imageUrl"] = url
-                noteRef.document(id).update(updates).addOnSuccessListener { onSuccess() }
+            i != null -> uploadToCloudinary(i) { url ->
+                up["imageUrl"] = url
+                noteRef.document(id).update(up).addOnSuccessListener { onSuccess() }
             }
-            else -> noteRef.document(id).update(updates).addOnSuccessListener { onSuccess() }
+            else -> noteRef.document(id).update(up).addOnSuccessListener { onSuccess() }
         }
     }
 
-    private fun uploadToCloudinary(uri: Uri, isFile: Boolean, fileName: String? = null, onComplete: (String) -> Unit) {
-        val uploadRequest = MediaManager.get().upload(uri)
-
-        uploadRequest.callback(object : UploadCallback {
+    private fun uploadToCloudinary(uri: Uri, onComplete: (String) -> Unit) {
+        MediaManager.get().upload(uri).callback(object : UploadCallback {
             override fun onStart(requestId: String?) {}
             override fun onProgress(requestId: String?, bytes: Long, totalBytes: Long) {}
             override fun onSuccess(requestId: String?, resultData: Map<*, *>) {
                 val url = resultData["secure_url"].toString()
                 onComplete(url)
             }
-            override fun onError(requestId: String?, error: ErrorInfo?) {
-                println("Cloudinary error: ${error?.description}")
-            }
+            override fun onError(requestId: String?, error: ErrorInfo?) {}
             override fun onReschedule(requestId: String?, error: ErrorInfo?) {}
         }).dispatch()
     }
 
-    // getNotes và deleteNote giữ nguyên, chỉ cần cập nhật mapping Note
     private fun getNotes(callback: (List<Note>) -> Unit) {
         noteRef.get().addOnSuccessListener { result ->
-            val list = mutableListOf<Note>()
-            for (doc in result) {
-                val note = Note(
+            callback(result.map { doc ->
+                Note(
                     id = doc.id,
                     title = doc.getString("title") ?: "",
                     description = doc.getString("description") ?: "",
@@ -542,15 +634,11 @@ class MainActivity : ComponentActivity() {
                     fileUrl = doc.getString("fileUrl") ?: "",
                     fileName = doc.getString("fileName") ?: ""
                 )
-                list.add(note)
-            }
-            callback(list)
-        }.addOnFailureListener { it.printStackTrace() }
+            })
+        }
     }
 
     private fun deleteNote(id: String, onSuccess: () -> Unit) {
-        noteRef.document(id).delete()
-            .addOnSuccessListener { onSuccess() }
-            .addOnFailureListener { it.printStackTrace() }
+        noteRef.document(id).delete().addOnSuccessListener { onSuccess() }
     }
 }

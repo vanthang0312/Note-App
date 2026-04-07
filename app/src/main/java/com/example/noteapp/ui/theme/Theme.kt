@@ -11,45 +11,70 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
-// ==================== MÀU SẮC MODERN DARK (Neon Purple + Indigo) ====================
+// ==================== MODERN DARK PALETTE (Neon / Deep Space) ====================
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFF8B5CF6),           // Tím neon chính (rất đẹp cho nút chính)
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFF6D28D9),
-    onPrimaryContainer = Color.White,
+    primary = Color(0xFFD0BCFF),           // Light Purple
+    onPrimary = Color(0xFF381E72),
+    primaryContainer = Color(0xFF4F378B),
+    onPrimaryContainer = Color(0xFFEADDFF),
 
-    secondary = Color(0xFF22D3EE),         // Cyan neon accent
-    onSecondary = Color.Black,
+    secondary = Color(0xFFCCC2DC),         // Muted Purple/Grey
+    onSecondary = Color(0xFF332D41),
+    secondaryContainer = Color(0xFF4A4458),
+    onSecondaryContainer = Color(0xFFE8DEF8),
 
-    tertiary = Color(0xFFFF9800),          // Cam nổi bật cho FAB (+)
-    onTertiary = Color.White,
+    tertiary = Color(0xFFEFB8C8),          // Soft Pink
+    onTertiary = Color(0xFF492532),
+    tertiaryContainer = Color(0xFF633B48),
+    onTertiaryContainer = Color(0xFFFFD8E4),
 
-    background = Color(0xFF0A0A0A),        // Nền tối sâu, sang trọng
-    onBackground = Color(0xFFE0E0E0),
+    background = Color(0xFF1C1B1F),        // Deep Grey/Black
+    onBackground = Color(0xFFE6E1E5),
+    
+    surface = Color(0xFF1C1B1F),
+    onSurface = Color(0xFFE6E1E5),
+    surfaceVariant = Color(0xFF49454F),
+    onSurfaceVariant = Color(0xFFCAC4D0),
 
-    surface = Color(0xFF1A1A1A),           // Nền Card
-    onSurface = Color(0xFFF0F0F0),
-    surfaceVariant = Color(0xFF252525),
-
-    error = Color(0xFFEF4444),
-    onError = Color.White
+    outline = Color(0xFF938F99),
+    error = Color(0xFFF2B8B5),
+    onError = Color(0xFF601410)
 )
 
-// Light theme (nếu người dùng bật sáng)
 private val LightColors = lightColorScheme(
-    primary = Color(0xFF6366F1),           // Indigo cho light mode
+    primary = Color(0xFF6750A4),
     onPrimary = Color.White,
-    secondary = Color(0xFF14B8A6),
-    tertiary = Color(0xFFF59E0B),
-    background = Color(0xFFF8FAFC),
-    surface = Color(0xFFFFFFFF),
-    error = Color(0xFFB91C1C)
+    primaryContainer = Color(0xFFEADDFF),
+    onPrimaryContainer = Color(0xFF21005D),
+
+    secondary = Color(0xFF625B71),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE8DEF8),
+    onSecondaryContainer = Color(0xFF1D192B),
+
+    tertiary = Color(0xFF7D5260),
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFFFD8E4),
+    onTertiaryContainer = Color(0xFF31111D),
+
+    background = Color(0xFFFFFBFE),
+    onBackground = Color(0xFF1C1B1F),
+    
+    surface = Color(0xFFFFFBFE),
+    onSurface = Color(0xFF1C1B1F),
+    surfaceVariant = Color(0xFFE7E0EC),
+    onSurfaceVariant = Color(0xFF49454F),
+
+    outline = Color(0xFF79747E),
+    error = Color(0xFFB3261E),
+    onError = Color.White
 )
 
 @Composable
 fun NoteAppTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,     // Giữ Dynamic Color theo wallpaper
+    // Dynamic color is available on Android 12+
+    dynamicColor: Boolean = false, // Set to false to use our custom modern colors
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -63,7 +88,7 @@ fun NoteAppTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,      // giữ nguyên Typography của bạn
+        typography = Typography,
         content = content
     )
 }
