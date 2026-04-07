@@ -56,6 +56,7 @@ class MainActivity : ComponentActivity() {
     private val auth = Firebase.auth
     private val db = Firebase.firestore
     private val noteRef = db.collection("notes")
+    private val userRef = db.collection("users")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -212,8 +213,17 @@ class MainActivity : ComponentActivity() {
                         } else {
                             auth.createUserWithEmailAndPassword(email, password)
                                 .addOnCompleteListener { task ->
-                                    isLoading = false
-                                    if (task.isSuccessful) isLogin = true
+                                    if (task.isSuccessful) {
+                                        val uid = auth.currentUser?.uid ?: ""
+                                        val newUser = User(uid = uid, email = email, role = "user")
+                                        userRef.document(uid).set(newUser).addOnCompleteListener {
+                                            isLoading = false
+                                            isLogin = true
+                                        }
+                                    } else {
+                                        isLoading = false
+                                        Toast.makeText(context, "Error: ${task.exception?.message}", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                         }
                     },
@@ -259,8 +269,14 @@ class MainActivity : ComponentActivity() {
         var showDialog by remember { mutableStateOf(false) }
         var editingNote by remember { mutableStateOf<Note?>(null) }
         var isLoading by remember { mutableStateOf(true) }
+        var userRole by remember { mutableStateOf("user") }
 
         LaunchedEffect(Unit) {
+            auth.currentUser?.uid?.let { uid ->
+                userRef.document(uid).get().addOnSuccessListener { doc ->
+                    userRole = doc.getString("role") ?: "user"
+                }
+            }
             getNotes { 
                 notes = it
                 isLoading = false
@@ -295,14 +311,16 @@ class MainActivity : ComponentActivity() {
                 )
             },
             floatingActionButton = {
-                ExtendedFloatingActionButton(
-                    onClick = { editingNote = null; showDialog = true },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    shape = RoundedCornerShape(20.dp),
-                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text("New Note", fontWeight = FontWeight.Bold) }
-                )
+                if (userRole == "admin") {
+                    ExtendedFloatingActionButton(
+                        onClick = { editingNote = null; showDialog = true },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        shape = RoundedCornerShape(20.dp),
+                        icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                        text = { Text("New Note", fontWeight = FontWeight.Bold) }
+                    )
+                }
             }
         ) { paddingValues ->
             Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
@@ -336,8 +354,9 @@ class MainActivity : ComponentActivity() {
                         items(notes) { note ->
                             NoteCard(
                                 note = note,
-                                onEdit = { editingNote = note; showDialog = true },
-                                onDelete = { deleteNote(note.id) { getNotes { notes = it } } },
+                                isAdmin = userRole == "admin",
+                                onEdit = { if (userRole == "admin") { editingNote = note; showDialog = true } },
+                                onDelete = { if (userRole == "admin") deleteNote(note.id) { getNotes { notes = it } } },
                                 onDownload = { downloadFile(note) }
                             )
                         }
@@ -346,7 +365,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        if (showDialog) {
+        if (showDialog && userRole == "admin") {
             NoteDialog(
                 note = editingNote,
                 onDismiss = { showDialog = false; editingNote = null },
@@ -364,11 +383,11 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun NoteCard(note: Note, onEdit: () -> Unit, onDelete: () -> Unit, onDownload: () -> Unit) {
+    fun NoteCard(note: Note, isAdmin: Boolean, onEdit: () -> Unit, onDelete: () -> Unit, onDownload: () -> Unit) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { onEdit() },
+                .clickable(enabled = isAdmin) { onEdit() },
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
@@ -398,16 +417,18 @@ class MainActivity : ComponentActivity() {
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    IconButton(
-                        onClick = onDelete,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = "Delete",
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
-                        )
+                    if (isAdmin) {
+                        IconButton(
+                            onClick = onDelete,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Delete",
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                            )
+                        }
                     }
                 }
 
