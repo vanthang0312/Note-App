@@ -357,7 +357,8 @@ class MainActivity : ComponentActivity() {
                                 isAdmin = userRole == "admin",
                                 onEdit = { if (userRole == "admin") { editingNote = note; showDialog = true } },
                                 onDelete = { if (userRole == "admin") deleteNote(note.id) { getNotes { notes = it } } },
-                                onDownload = { downloadFile(note) }
+                                onDownloadFile = { downloadMedia(note.fileUrl, note.fileName) },
+                                onDownloadImage = { downloadMedia(note.imageUrl, "image_${note.id}.jpg") }
                             )
                         }
                     }
@@ -383,7 +384,14 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun NoteCard(note: Note, isAdmin: Boolean, onEdit: () -> Unit, onDelete: () -> Unit, onDownload: () -> Unit) {
+    fun NoteCard(
+        note: Note, 
+        isAdmin: Boolean, 
+        onEdit: () -> Unit, 
+        onDelete: () -> Unit, 
+        onDownloadFile: () -> Unit,
+        onDownloadImage: () -> Unit
+    ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -434,15 +442,34 @@ class MainActivity : ComponentActivity() {
 
                 if (note.imageUrl.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(16.dp))
-                    AsyncImage(
-                        model = note.imageUrl,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(180.dp)
-                            .clip(RoundedCornerShape(16.dp)),
-                        contentScale = ContentScale.Crop
-                    )
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        AsyncImage(
+                            model = note.imageUrl,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(180.dp)
+                                .clip(RoundedCornerShape(16.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                        // Nút tải ảnh
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(8.dp)
+                                .size(36.dp)
+                                .clickable { onDownloadImage() },
+                            shape = CircleShape,
+                            color = Color.Black.copy(alpha = 0.5f)
+                        ) {
+                            Icon(
+                                Icons.Default.Download,
+                                contentDescription = "Download Image",
+                                tint = Color.White,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
                 }
 
                 if (note.fileUrl.isNotEmpty()) {
@@ -450,7 +477,7 @@ class MainActivity : ComponentActivity() {
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onDownload() },
+                            .clickable { onDownloadFile() },
                         color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
                         shape = RoundedCornerShape(12.dp)
                     ) {
@@ -586,17 +613,16 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    private fun downloadFile(note: Note) {
-        if (note.fileUrl.isEmpty()) return
-        val context = this
-        val request = DownloadManager.Request(note.fileUrl.toUri())
-            .setTitle(note.fileName)
+    private fun downloadMedia(url: String, fileName: String) {
+        if (url.isEmpty()) return
+        val request = DownloadManager.Request(url.toUri())
+            .setTitle(fileName)
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, note.fileName)
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
         
-        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        val downloadManager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         downloadManager.enqueue(request)
-        Toast.makeText(this, "Downloading file...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Downloading...", Toast.LENGTH_SHORT).show()
     }
 
     private fun addNoteWithFile(t: String, d: String, i: Uri?, f: Uri?, fn: String?, onSuccess: () -> Unit) {
